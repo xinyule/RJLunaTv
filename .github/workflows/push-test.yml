@@ -1,0 +1,21 @@
+name: push-test
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - env:
+          PAT: ${{ secrets.MIRROR_PAT }}
+        run: |
+          git config user.email bot@example.com
+          git config user.name bot
+          printf 'name: dummy\non: workflow_dispatch\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo hi\n' > .github/workflows/dummy-test.yml
+          git add .github/workflows/dummy-test.yml
+          git commit -m "test: push workflow file using PAT"
+          git remote set-url origin "https://x-access-token:${PAT}@github.com/xinyule/RJLunaTv.git"
+          git push origin main
