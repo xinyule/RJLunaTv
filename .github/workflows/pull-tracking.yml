@@ -8,7 +8,7 @@ on:
         required: false
         default: merge
       source_branch:
-        description: 'tracking repo branch'
+        description: 'source branch to pull from'
         required: false
         default: main
 
@@ -16,7 +16,7 @@ permissions:
   contents: write
 
 jobs:
-  pull:
+  sync:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -29,12 +29,13 @@ jobs:
           git config user.name "mirror-bot"
           git config user.email "mirror-bot@users.noreply.github.com"
 
-      - name: Fetch tracking repo
+      - name: Fetch source
         env:
           SRC_BRANCH: ${{ github.event.inputs.source_branch }}
         run: |
+          git fetch origin main
           git remote add tracking https://github.com/xinyule/LunaTV.git
-          git fetch tracking "$SRC_BRANCH"
+          git fetch --tags tracking "$SRC_BRANCH"
 
       - name: Merge (keep your commits)
         if: ${{ github.event.inputs.mode == 'merge' }}
@@ -42,7 +43,16 @@ jobs:
           SRC_BRANCH: ${{ github.event.inputs.source_branch }}
         run: |
           git checkout main
-          git merge --no-edit "tracking/$SRC_BRANCH"
+          if ! git merge --no-edit --no-commit "tracking/$SRC_BRANCH"; then
+            echo "::error::合并冲突，请手动处理后再跑"
+            git merge --abort || true
+            exit 1
+          fi
+          bash -c 'git rm -r -q --cached .github/workflows >/dev/null 2>&1 || true
+          rm -rf .github/workflows
+          git checkout origin/main -- .github/workflows 2>/dev/null || true'
+          git add -A
+          git commit -m "chore: merge from xinyule/LunaTV" || echo "没有需要提交的变更"
 
       - name: Force reset (discard your commits)
         if: ${{ github.event.inputs.mode == 'force' }}
@@ -51,15 +61,24 @@ jobs:
         run: |
           git checkout main
           git reset --hard "tracking/$SRC_BRANCH"
+          bash -c 'git rm -r -q --cached .github/workflows >/dev/null 2>&1 || true
+          rm -rf .github/workflows
+          git checkout origin/main -- .github/workflows 2>/dev/null || true'
+          git add -A
+          git commit -m "chore: reset to xinyule/LunaTV" || echo "没有需要提交的变更"
 
       - name: Push
         env:
           PAT: ${{ secrets.MIRROR_PAT }}
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          AUTH="${PAT:-$TOKEN}"
-          git remote set-url origin "https://x-access-token:${AUTH}@github.com/xinyule/RJLunaTv.git"
-          git push --force-with-lease origin main
+          git remote set-url origin "https://x-access-token:${PAT:-$TOKEN}@github.com/xinyule/RJLunaTv.git"
+          if [ "${{ github.event.inputs.mode }}" = "force" ]; then
+            git push --force origin main
+          else
+            git push origin main
+          fi
+          git push origin --tags || true
 
       - name: Result
         run: git log --oneline -3
