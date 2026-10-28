@@ -13,7 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getConfig } from '@/lib/config';
 import { DEFAULT_USER_AGENT } from '@/lib/user-agent';
-import { readTextLimited, validateProxyTargetUrl } from '@/lib/proxy-security';
+import { fetchWithValidatedRedirects, readTextLimited, validateProxyTargetUrl } from '@/lib/proxy-security';
 
 // CMS 搜索/详情/分类响应体大小硬上限，防止异常上游返回超大响应把内存打爆
 const MAX_RESPONSE_BYTES = 10 * 1024 * 1024; // 10MB
@@ -192,13 +192,12 @@ export async function GET(request: NextRequest) {
       requestHeaders['Referer'] = `${parsedUrl.origin}/`;
       requestHeaders['Origin'] = parsedUrl.origin;
 
-      const response = await fetch(targetUrl, {
-        method: 'GET',
-        headers: requestHeaders,
-        signal: controller.signal,
-        // @ts-ignore - Node.js fetch 特有选项
-        compress: true, // 启用压缩
-      });
+      // 1.0.1：首跳已校验，但原先默认跟随重定向。改为逐跳校验，20 秒超时。
+      const response = await fetchWithValidatedRedirects(
+        targetUrl,
+        { method: 'GET', headers: requestHeaders },
+        { timeoutMs: 20000, maxRedirects: 3 },
+      );
 
       clearTimeout(timeoutId);
 
