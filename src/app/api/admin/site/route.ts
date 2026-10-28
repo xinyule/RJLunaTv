@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 
-import { getAuthInfoFromCookie } from '@/lib/auth';
+import { verifyAuthInfo } from '@/lib/auth';
 import { clearConfigCache, getConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    const authInfo = getAuthInfoFromCookie(request);
+    const authInfo = await verifyAuthInfo(request);
     if (!authInfo || !authInfo.username) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
