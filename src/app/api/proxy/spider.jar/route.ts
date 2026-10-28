@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateProxyTargetUrl } from '@/lib/proxy-security';
 import { getSpiderJar, getSpiderJarByMd5 } from '@/lib/spiderJar';
 
 export const runtime = 'nodejs';
@@ -15,6 +16,15 @@ export async function GET(req: NextRequest) {
       .split(';')[0]
       .trim()
       .toLowerCase();
+
+    // 1.0.1：自定义 jar URL 先校验，内网/重定向目标由 spiderJar 逐跳再校验。
+    if (customUrl) {
+      try {
+        await validateProxyTargetUrl(customUrl);
+      } catch {
+        return NextResponse.json({ error: 'Invalid or blocked jar URL' }, { status: 403 });
+      }
+    }
 
     // 🔑 若请求指定了 md5（config 生成时锁定的版本），优先返回同一份 jar 字节，
     // 避免 config 与代理响应之间的 jar 轮换导致 TVBox 校验 md5 不一致。
