@@ -24,6 +24,10 @@ export async function GET(request: NextRequest) {
   if (!path) {
     return NextResponse.json({ error: 'Missing path parameter' }, { status: 400 });
   }
+  // 1.0.1：path 直接拼到固定域名后，../ 可穿越到同域名其他接口。
+  if (path.startsWith('/') || path.includes('..') || path.includes('\\')) {
+    return NextResponse.json({ error: 'Invalid path parameter' }, { status: 400 });
+  }
 
   try {
     const [adminConfig, cacheTime] = await Promise.all([getConfig(), getCacheTime()]);

@@ -4,6 +4,18 @@ addEventListener('fetch', (event) => {
   event.respondWith(handleRequest(event.request));
 });
 
+// 1.0.1 安全提示：本文件是独立部署的开放代理示例，Next.js 主应用不使用它。
+// 若单独部署，请勿公开暴露；下方仅拦截字面内网 IP 与 localhost，域名经 DNS
+// 解析到内网的情况在 Worker 环境无法可靠校验，公开部署前须自行加白名单。
+function isLiteralPrivateIp(hostname) {
+  if (hostname === 'localhost' || hostname.endsWith('.localhost')) return true;
+  const m = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (!m) return false;
+  const a = Number(m[1]); const b = Number(m[2]);
+  return a === 0 || a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) || (a === 169 && b === 254) || a >= 224;
+}
+
 async function handleRequest(request) {
   try {
     const url = new URL(request.url);
@@ -31,6 +43,16 @@ async function handleRequest(request) {
       request.headers,
       (name) => !name.startsWith('cf-')
     );
+
+    // 拦截字面内网目标（域名解析类 SSRF 仍需部署层白名单，见文件头提示）
+    try {
+      const targetHost = new URL(actualUrlStr).hostname.toLowerCase();
+      if (isLiteralPrivateIp(targetHost)) {
+        return jsonResponse({ error: 'Blocked private target' }, 403);
+      }
+    } catch {
+      return jsonResponse({ error: 'Invalid target URL' }, 400);
+    }
 
     // 创建一个新的请求以访问目标 URL
     const modifiedRequest = new Request(actualUrlStr, {

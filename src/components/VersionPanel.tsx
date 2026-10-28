@@ -83,7 +83,7 @@ export const VersionPanel: React.FC<VersionPanelProps> = ({
       // 添加时间戳参数避免浏览器缓存
       const timestamp = Date.now();
       const response = await fetch(
-        `https://raw.githubusercontent.com/SzeMeng76/LunaTV/refs/heads/main/CHANGELOG?_t=${timestamp}`
+        `https://raw.githubusercontent.com/xinyule/RJLunaTv/refs/heads/main/CHANGELOG?_t=${timestamp}`
       );
       if (response.ok) {
         const content = await response.text();
@@ -365,7 +365,7 @@ export const VersionPanel: React.FC<VersionPanelProps> = ({
                     </div>
                   </div>
                   <a
-                    href='https://github.com/SzeMeng76/LunaTV'
+                    href='https://github.com/xinyule/RJLunaTv'
                     target='_blank'
                     rel='noopener noreferrer'
                     className='inline-flex items-center justify-center gap-2 px-3 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-xs sm:text-sm rounded-lg transition-colors shadow-sm w-full'
@@ -395,7 +395,7 @@ export const VersionPanel: React.FC<VersionPanelProps> = ({
                     </div>
                   </div>
                   <a
-                    href='https://github.com/SzeMeng76/LunaTV'
+                    href='https://github.com/xinyule/RJLunaTv'
                     target='_blank'
                     rel='noopener noreferrer'
                     className='inline-flex items-center justify-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm rounded-lg transition-colors shadow-sm w-full'

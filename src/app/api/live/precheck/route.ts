@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getConfig } from '@/lib/config';
+import { fetchWithValidatedRedirects } from '@/lib/proxy-security';
 
 export const runtime = 'nodejs';
 
@@ -135,15 +136,15 @@ export async function GET(request: NextRequest) {
     let detectedType = detectTypeFromUrl(decodedUrl);
 
     const startTime = Date.now();
-    const response = await fetch(decodedUrl, {
-      cache: 'no-cache',
-      redirect: 'follow',
-      headers: {
-        'User-Agent': ua,
-        Range: 'bytes=0-2047',
+    // 1.0.1：原先完全不校验且跟随重定向。改为逐跳校验，8 秒超时。
+    const response = await fetchWithValidatedRedirects(
+      decodedUrl,
+      {
+        cache: 'no-cache',
+        headers: { 'User-Agent': ua, Range: 'bytes=0-2047' },
       },
-      signal: AbortSignal.timeout(8000),
-    });
+      { timeoutMs: 8000, maxRedirects: 3 },
+    );
     const latencyMs = Date.now() - startTime;
 
     if (!response.ok && response.status !== 206) {

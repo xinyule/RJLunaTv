@@ -25,7 +25,7 @@
 ![HLS.js](https://img.shields.io/badge/HLS.js-1.7.3-ec407a)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-green)
 ![Docker Ready](https://img.shields.io/badge/Docker-ready-blue?logo=docker)
-![Version](https://img.shields.io/badge/Version-6.6.5-orange)
+![Version](https://img.shields.io/badge/Version-1.0.1-orange)
 
 </div>
 
@@ -33,7 +33,7 @@
 
 ## 📢 项目说明
 
-本项目是在 **MoonTV** 基础上进行的深度二次开发版本，从 **v4.3.1** 版本开始，持续迭代至当前 **v6.6.5**，累计新增 60+ 重大功能模块，400+ 细节优化。所有新增功能详见 [CHANGELOG](CHANGELOG)。
+本项目是在 **MoonTV** 基础上进行的深度二次开发版本，从 **v4.3.1** 版本开始，本仓自有版本现为 **1.0.1**（上游 LunaTV 迭代至 v6.6.5 的历史见 CHANGELOG），累计新增 60+ 重大功能模块，400+ 细节优化。所有新增功能详见 [CHANGELOG](CHANGELOG)。
 
 ## ⚠️ 重要声明
 
@@ -108,8 +108,8 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/SzeMeng76/LunaTV.git
-cd LunaTV
+git clone https://github.com/xinyule/RJLunaTv.git
+cd RJLunaTv
 
 # 复制环境变量配置
 cp .env.example .env
@@ -246,11 +246,11 @@ pnpm dev
 
 ## 📊 Star History
 
-<a href="https://www.star-history.com/?repos=SzeMeng76%2FLunaTV&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=xinyule%2FRJLunaTv&type=date&legend=top-left">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=SzeMeng76/LunaTV&type=date&theme=dark&legend=top-left&sealed_token=iij9XuMQwh5rb8SNAKGkKG5rQoIEeYszjWID7ySfhAdCizmcs0StkAebYFZMZOzsSKDK1sYEu3OfbTZO9KQmhzwxg11xBpI8j_clH-lZWfr14521J0-L7Q" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=SzeMeng76/LunaTV&type=date&legend=top-left&sealed_token=iij9XuMQwh5rb8SNAKGkKG5rQoIEeYszjWID7ySfhAdCizmcs0StkAebYFZMZOzsSKDK1sYEu3OfbTZO9KQmhzwxg11xBpI8j_clH-lZWfr14521J0-L7Q" />
-    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=SzeMeng76/LunaTV&type=date&legend=top-left&sealed_token=iij9XuMQwh5rb8SNAKGkKG5rQoIEeYszjWID7ySfhAdCizmcs0StkAebYFZMZOzsSKDK1sYEu3OfbTZO9KQmhzwxg11xBpI8j_clH-lZWfr14521J0-L7Q" />
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=xinyule/RJLunaTv&type=date&theme=dark&legend=top-left&sealed_token=iij9XuMQwh5rb8SNAKGkKG5rQoIEeYszjWID7ySfhAdCizmcs0StkAebYFZMZOzsSKDK1sYEu3OfbTZO9KQmhzwxg11xBpI8j_clH-lZWfr14521J0-L7Q" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=xinyule/RJLunaTv&type=date&legend=top-left&sealed_token=iij9XuMQwh5rb8SNAKGkKG5rQoIEeYszjWID7ySfhAdCizmcs0StkAebYFZMZOzsSKDK1sYEu3OfbTZO9KQmhzwxg11xBpI8j_clH-lZWfr14521J0-L7Q" />
+    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=xinyule/RJLunaTv&type=date&legend=top-left&sealed_token=iij9XuMQwh5rb8SNAKGkKG5rQoIEeYszjWID7ySfhAdCizmcs0StkAebYFZMZOzsSKDK1sYEu3OfbTZO9KQmhzwxg11xBpI8j_clH-lZWfr14521J0-L7Q" />
   </picture>
 </a>
 

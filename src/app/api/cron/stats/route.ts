@@ -1,6 +1,8 @@
 /* eslint-disable no-console,@typescript-eslint/no-explicit-any */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+
+import { getAdminRoleFromRequest } from '@/lib/admin-auth';
 
 export const runtime = 'nodejs';
 
@@ -8,7 +10,17 @@ export const runtime = 'nodejs';
 // 注意：这里我们需要从父模块导出 currentCronStats
 let cachedStats: any = null;
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // 1.0.1：统计接口原先无鉴权。CRON_SECRET 通过时放行，否则须为已验签的管理员。
+  const cronSecret = process.env.CRON_SECRET;
+  const authHeader = request.headers.get('authorization') || '';
+  const provided =
+    request.headers.get('x-cron-secret') ||
+    (authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '');
+  const hasCronSecret = !!cronSecret && provided === cronSecret;
+  if (!hasCronSecret && !(await getAdminRoleFromRequest(request))) {
+    return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
+  }
   try {
     // 从全局获取最新的 cron 统计数据
     // 这里需要修改 cron/route.ts 来导出统计数据

@@ -1,9 +1,9 @@
 services:
   - type: web
-    name: lunatv
+    name: rjlunatv
     runtime: image
     image:
-      url: ghcr.io/szemeng76/lunatv:latest
+      url: ghcr.io/xinyule/rjlunatv:latest
     numInstances: 1
     plan: free
     healthCheckPath: /

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { AdminConfig, AdminConfigResult } from '@/lib/admin.types';
-import { getAuthInfoFromCookie } from '@/lib/auth';
+import { verifyAuthInfo } from '@/lib/auth';
 import { clearConfigCache, getConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const authInfo = getAuthInfoFromCookie(request);
+  const authInfo = await verifyAuthInfo(request);
   if (!authInfo || !authInfo.username) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -36,6 +36,19 @@ export async function GET(request: NextRequest) {
     if (username === process.env.USERNAME) {
       result.Role = 'owner';
     } else {
+      // 1.0.1：非站长管理员读配置时脱敏密钥类字段（原先全量返回 botToken、
+      // OIDC clientSecret、各 API Key）。脱敏后管理员仍可管理普通配置，
+      // 密钥类字段留空，写回时以站长侧保存为准。
+      const redacted = JSON.parse(JSON.stringify(config)) as any;
+      if (redacted.TelegramAuthConfig) redacted.TelegramAuthConfig.botToken = '';
+      if (redacted.OIDCAuthConfig) redacted.OIDCAuthConfig.clientSecret = '';
+      if (Array.isArray(redacted.OIDCProviders)) {
+        redacted.OIDCProviders.forEach((provider: any) => { provider.clientSecret = ''; });
+      }
+      if (redacted.SiteConfig) {
+        redacted.SiteConfig.TMDBApiKey = '';
+      }
+      result.Config = redacted;
       const user = config.UserConfig.Users.find((u) => u.username === username);
       if (user && user.role === 'admin' && !user.banned) {
         result.Role = 'admin';
@@ -75,7 +88,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const authInfo = getAuthInfoFromCookie(request);
+  const authInfo = await verifyAuthInfo(request);
   if (!authInfo || !authInfo.username) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

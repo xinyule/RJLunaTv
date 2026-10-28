@@ -1,6 +1,7 @@
 /* eslint-disable no-console,@typescript-eslint/no-explicit-any */
 
 import { NextResponse } from "next/server";
+import { fetchWithValidatedRedirects } from '@/lib/proxy-security';
 import { DEFAULT_USER_AGENT } from '@/lib/user-agent';
 
 export const runtime = 'nodejs';
@@ -53,15 +54,12 @@ export async function GET(request: Request) {
       delete headers['Range'];
     }
 
-    const response = await fetch(decodedUrl, {
-      cache: 'no-cache',
-      redirect: 'follow',
-      signal: controller.signal,
-      headers: new Headers(headers),
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore - Node.js specific option
-      agent: typeof window === 'undefined' ? agent : undefined,
-    });
+    // 1.0.1：原先完全不校验目标 URL 且跟随重定向。改为逐跳校验。
+    const response = await fetchWithValidatedRedirects(
+      decodedUrl,
+      { cache: 'no-cache', headers: new Headers(headers) },
+      { timeoutMs: 30000, maxRedirects: 3 },
+    );
 
     clearTimeout(timeoutId);
 

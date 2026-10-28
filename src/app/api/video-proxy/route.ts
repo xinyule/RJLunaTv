@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { DEFAULT_USER_AGENT } from '@/lib/user-agent';
 import { isVideoCached, getCachedVideoPath, cacheVideoContent, deleteVideoCache } from '@/lib/video-cache';
-import { validateProxyTargetUrl } from '@/lib/proxy-security';
+import { fetchWithValidatedRedirects, validateProxyTargetUrl } from '@/lib/proxy-security';
 import { promises as fs } from 'fs';
 import { createReadStream } from 'fs';
 import { db } from '@/lib/db';
@@ -95,10 +95,12 @@ export async function GET(request: Request) {
       fetchHeaders['If-Modified-Since'] = ifModifiedSince;
     }
 
-    const videoResponse = await fetch(videoUrl, {
-      signal: controller.signal,
-      headers: fetchHeaders,
-    });
+    // 1.0.1：首跳已校验，但原先默认跟随重定向。改为逐跳校验，30 秒超时。
+    const videoResponse = await fetchWithValidatedRedirects(
+      videoUrl,
+      { headers: fetchHeaders },
+      { timeoutMs: 30000, maxRedirects: 3 },
+    );
 
     clearTimeout(timeoutId);
 
@@ -300,7 +302,9 @@ export async function HEAD(request: Request) {
     const videoUrlObj = new URL(videoUrl);
     const sourceOrigin = `${videoUrlObj.protocol}//${videoUrlObj.host}`;
 
-    const videoResponse = await fetch(videoUrl, {
+    // 1.0.1：HEAD 分支原先连首跳校验都没有。先校验，再逐跳校验重定向。
+    await validateProxyTargetUrl(videoUrl);
+    const videoResponse = await fetchWithValidatedRedirects(videoUrl, {
       method: 'HEAD',
       headers: {
         'Referer': sourceOrigin + '/',
@@ -312,7 +316,7 @@ export async function HEAD(request: Request) {
         'Accept-Encoding': 'identity;q=1, *;q=0',
         'Connection': 'keep-alive',
       },
-    });
+    }, { timeoutMs: 15000, maxRedirects: 3 });
 
     const headers = new Headers();
     const contentType = videoResponse.headers.get('content-type');

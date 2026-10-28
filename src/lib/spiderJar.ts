@@ -6,6 +6,7 @@
  */
 import crypto from 'crypto';
 import { DEFAULT_USER_AGENT } from './user-agent';
+import { fetchWithValidatedRedirects } from './proxy-security';
 
 // 高可用 JAR 候选源配置 - 针对不同网络环境优化
 // 策略：多源并发检测 + 地区优化 + 实时健康检查
@@ -127,13 +128,15 @@ async function fetchRemote(
         headers['User-Agent'] = DEFAULT_USER_AGENT;
       }
 
-      // 直接获取文件内容，跳过 HEAD 检查（减少请求次数）
-      const resp = await fetch(url, {
-        method: 'GET',
-        signal: controller.signal,
-        headers,
-        redirect: 'follow', // 允许重定向
-      });
+      // 1.0.1：原先 redirect: 'follow'，自定义 jar URL 可经重定向打内网。
+      // 改为逐跳校验（内置候选源同样受校验；若候选源重定向到内网则视为失败
+      // 并继续尝试下一个候选源）。注意：fetchWithValidatedRedirects 自带超时，
+      // 这里的 controller 仅用于兼容原有超时清理。
+      const resp = await fetchWithValidatedRedirects(
+        url,
+        { method: 'GET', headers },
+        { timeoutMs, maxRedirects: 3 },
+      );
       clearTimeout(id);
 
       if (!resp.ok) {
@@ -145,6 +148,11 @@ async function fetchRemote(
       }
 
       const ab = await resp.arrayBuffer();
+      // 1.0.1：jar 正常只有几百 KB，超过 10MB 直接视为异常上游。
+      if (ab.byteLength > 10 * 1024 * 1024) {
+        _lastError = `File too large: ${ab.byteLength} bytes`;
+        continue;
+      }
       if (ab.byteLength < 1000) {
         _lastError = `File too small: ${ab.byteLength} bytes`;
         continue;

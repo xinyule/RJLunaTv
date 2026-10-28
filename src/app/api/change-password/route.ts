@@ -40,8 +40,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '新密码不得为空' }, { status: 400 });
     }
 
-    if (newPassword.length < 6) {
-      return NextResponse.json({ error: '新密码至少 6 位' }, { status: 400 });
+    if (newPassword.length < 8 || !/[A-Za-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      return NextResponse.json({ error: '新密码至少 8 位，且须同时包含字母和数字' }, { status: 400 });
     }
 
     if (newPassword === oldPassword) {

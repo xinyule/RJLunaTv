@@ -13,7 +13,7 @@ export enum UpdateStatus {
 
 // 远程版本检查URL配置
 const VERSION_CHECK_URLS = [
-  'https://raw.githubusercontent.com/SzeMeng76/LunaTV/refs/heads/main/VERSION.txt',
+  'https://raw.githubusercontent.com/xinyule/RJLunaTv/refs/heads/main/VERSION.txt',
 ];
 
 // ========== 缓存机制 ==========
@@ -137,7 +137,11 @@ async function performVersionCheck(): Promise<UpdateStatus> {
       return status;
     }
 
-    // 如果主要URL失败，尝试备用URL
+    // 如果主要URL失败，尝试备用URL（1.0.1：原先 VERSION_CHECK_URLS[1] 根本
+    // 不存在，fetchVersionFromUrl(undefined) 只靠异常兜底；现无备用 URL 时直接返回失败）
+    if (!VERSION_CHECK_URLS[1]) {
+      return UpdateStatus.FETCH_FAILED;
+    }
     const backupVersion = await fetchVersionFromUrl(VERSION_CHECK_URLS[1]);
     if (backupVersion) {
       const status = compareVersions(backupVersion);

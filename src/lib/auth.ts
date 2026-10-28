@@ -80,6 +80,33 @@ export async function verifyLocalPasswordHash(
   return !!expected && storedHash === expected;
 }
 
+// 校验 cookie 的真实性（1.0.1 新增，修复未验签就信任 username 的问题）。
+// - localstorage 模式：校验密码哈希（与 proxy.ts 的 localstorage 分支一致）。
+// - 数据库模式：用户名必须附带 HMAC(username, PASSWORD) 签名，且时间戳
+//   不超过 7 天；仅带 trustedNetwork 标记、没有有效签名的 cookie 一律无效，
+//   信任网络签发的 cookie 也必须先经过签发时签名（见 proxy.ts）。
+// 注意：本函数不查用户是否存在/是否被封禁，调用方仍需按原有逻辑查配置。
+export async function verifyAuthInfo(
+  request: NextRequest,
+): Promise<ReturnType<typeof getAuthInfoFromCookie>> {
+  const authInfo = getAuthInfoFromCookie(request);
+  if (!authInfo) return null;
+  const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
+  if (storageType === 'localstorage') {
+    if (await verifyLocalPasswordHash(authInfo.password)) return authInfo;
+    return null;
+  }
+  const secret = process.env.PASSWORD;
+  if (!secret || !authInfo.username || !authInfo.signature) return null;
+  if (authInfo.timestamp) {
+    const age = Date.now() - authInfo.timestamp;
+    if (!Number.isFinite(age) || age < 0 || age > 7 * 24 * 60 * 60 * 1000) return null;
+  }
+  const expected = await generateSignature(authInfo.username, secret);
+  if (expected !== authInfo.signature) return null;
+  return authInfo;
+}
+
 // 从cookie获取认证信息 (服务端使用)
 export function getAuthInfoFromCookie(request: NextRequest): {
   password?: string;

@@ -41,7 +41,7 @@
 如果你在使用过程中遇到问题：
 
 1. 查看对应的文档章节
-2. 查看 [GitHub Issues](https://github.com/SzeMeng76/LunaTV/issues)
+2. 查看 [GitHub Issues](https://github.com/xinyule/RJLunaTv/issues)
 3. 加入社区讨论
 
 ## 📝 贡献文档

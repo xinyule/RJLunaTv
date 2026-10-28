@@ -76,6 +76,13 @@ export async function GET(request: NextRequest) {
   }
 
   const config = await getConfig();
+  // 1.0.1：封禁用户原先仍可搜索（中间件不查 banned）。封禁即拒绝，站长除外。
+  if (authInfo.username !== process.env.USERNAME) {
+    const bannedUser = config.UserConfig?.Users?.find((u: any) => u.username === authInfo.username);
+    if (bannedUser?.banned) {
+      return NextResponse.json({ error: '用户已被封禁' }, { status: 401 });
+    }
+  }
   const apiSites = await getAvailableApiSites(authInfo.username);
 
   // 优化：预计算搜索变体，智能生成（普通查询1个，需要变体的2个）

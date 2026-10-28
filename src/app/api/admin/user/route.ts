@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-import { getAuthInfoFromCookie } from '@/lib/auth';
+import { verifyAuthInfo } from '@/lib/auth';
 import { clearConfigCache, getConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    const authInfo = getAuthInfoFromCookie(request);
+    const authInfo = await verifyAuthInfo(request);
     if (!authInfo || !authInfo.username) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -75,6 +75,11 @@ export async function POST(request: NextRequest) {
         { error: '无法对自己进行此操作' },
         { status: 400 }
       );
+    }
+
+    // 1.0.1：管理员代设密码同样要求强度（此前无任何长度校验）。
+    if (targetPassword && (targetPassword.length < 8 || !/[A-Za-z]/.test(targetPassword) || !/[0-9]/.test(targetPassword))) {
+      return NextResponse.json({ error: '新密码至少 8 位，且须同时包含字母和数字' }, { status: 400 });
     }
 
     // 获取配置与存储

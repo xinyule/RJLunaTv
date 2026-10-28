@@ -3,6 +3,7 @@
 import { NextResponse } from 'next/server';
 
 import { getConfig } from '@/lib/config';
+import { fetchWithValidatedRedirects } from '@/lib/proxy-security';
 
 export const runtime = 'nodejs';
 
@@ -137,22 +138,22 @@ export async function GET(request: Request) {
     const isHttps = decodedUrl.startsWith('https:');
     const agent = isHttps ? httpsAgent : httpAgent;
 
-    const imageResponse = await fetch(decodedUrl, {
-      cache: 'no-cache',
-      redirect: 'follow',
-      credentials: 'same-origin',
-      signal: controller.signal,
-      headers: {
-        'User-Agent': ua,
-        'Accept': 'image/webp,image/avif,image/png,image/jpeg,image/gif,image/svg+xml,*/*;q=0.8',
-        'Accept-Encoding': 'identity',
-        'Cache-Control': 'no-cache',
-        ...(cached?.etag && { 'If-None-Match': cached.etag })
+    // 1.0.1：原先完全不校验且跟随重定向。改为逐跳校验，15 秒超时。
+    const imageResponse = await fetchWithValidatedRedirects(
+      decodedUrl,
+      {
+        cache: 'no-cache',
+        credentials: 'same-origin',
+        headers: {
+          'User-Agent': ua,
+          'Accept': 'image/webp,image/avif,image/png,image/jpeg,image/gif,image/svg+xml,*/*;q=0.8',
+          'Accept-Encoding': 'identity',
+          'Cache-Control': 'no-cache',
+          ...(cached?.etag && { 'If-None-Match': cached.etag }),
+        },
       },
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore - Node.js specific option
-      agent: typeof window === 'undefined' ? agent : undefined,
-    });
+      { timeoutMs: 15000, maxRedirects: 3 },
+    );
 
     clearTimeout(timeoutId);
 
@@ -204,8 +205,13 @@ export async function GET(request: Request) {
       );
     }
 
-    // 读取图片数据并缓存
+    // 读取图片数据并缓存（1.0.1：原先 5MB 只看 content-length 头，头缺失或
+    // 撒谎时 arrayBuffer 无界读取；现实际读取后也校验，超限不缓存不返回）
     const imageData = await imageResponse.arrayBuffer();
+    if (imageData.byteLength > 5 * 1024 * 1024) {
+      logoStats.errors++;
+      return NextResponse.json({ error: 'Image too large: exceeds 5MB' }, { status: 400 });
+    }
     
     // 缓存图片数据
     logoCache.set(cacheKey, {

@@ -3,6 +3,7 @@
 import { NextResponse } from "next/server";
 
 import { getConfig } from "@/lib/config";
+import { fetchWithValidatedRedirects } from "@/lib/proxy-security";
 import { DEFAULT_USER_AGENT } from "@/lib/user-agent";
 
 export const runtime = 'nodejs';
@@ -74,19 +75,20 @@ export async function GET(request: Request) {
     const isHttps = decodedUrl.startsWith('https:');
     const agent = isHttps ? httpsAgent : httpAgent;
 
-    response = await fetch(decodedUrl, {
-      signal: controller.signal,
-      headers: {
-        'User-Agent': ua,
-        'Accept': 'video/mp2t, video/*, */*',
-        'Accept-Encoding': 'identity',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
+    // 1.0.1：原先完全不校验目标 URL。改为逐跳校验，30 秒超时。
+    response = await fetchWithValidatedRedirects(
+      decodedUrl,
+      {
+        headers: {
+          'User-Agent': ua,
+          'Accept': 'video/mp2t, video/*, */*',
+          'Accept-Encoding': 'identity',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
       },
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore - Node.js specific option
-      agent: typeof window === 'undefined' ? agent : undefined,
-    });
+      { timeoutMs: 30000, maxRedirects: 3 },
+    );
 
     clearTimeout(timeoutId);
 
@@ -163,14 +165,13 @@ export async function GET(request: Request) {
 
             if (done) {
               controller.close();
-              cleanup();
+              cleanup(); // 1.0.1：cleanup 内已 activeStreams--，原先这里又减一次，统计会漂移为负
               
               // 更新统计信息
               const responseTime = Date.now() - startTime;
               segmentStats.avgResponseTime = 
                 (segmentStats.avgResponseTime * (segmentStats.requests - 1) + responseTime) / segmentStats.requests;
               segmentStats.totalBytes += bytesTransferred;
-              segmentStats.activeStreams--;
               
               return;
             }

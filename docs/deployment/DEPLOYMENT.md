@@ -37,7 +37,7 @@ Kvrocks 是基于 RocksDB 的持久化 Redis 协议兼容存储，推荐用于�
 ```yml
 services:
   moontv-core:
-    image: ghcr.io/szemeng76/lunatv:latest
+    image: ghcr.io/xinyule/rjlunatv:latest
     container_name: moontv-core
     restart: on-failure
     ports:
@@ -83,7 +83,7 @@ Redis 默认配置可能导致数据丢失，需要开启持久化。
 ```yml
 services:
   moontv-core:
-    image: ghcr.io/szemeng76/lunatv:latest
+    image: ghcr.io/xinyule/rjlunatv:latest
     container_name: moontv-core
     restart: on-failure
     ports:
@@ -124,7 +124,7 @@ networks:
 ```yml
 services:
   moontv-core:
-    image: ghcr.io/szemeng76/lunatv:latest
+    image: ghcr.io/xinyule/rjlunatv:latest
     container_name: moontv-core
     restart: on-failure
     ports:
@@ -242,7 +242,7 @@ docker-compose logs -f
    在 Space 仓库根目录创建 `Dockerfile`，仅需一行：
 
    ```dockerfile
-   FROM ghcr.io/szemeng76/lunatv:latest
+   FROM ghcr.io/xinyule/rjlunatv:latest
    ```
 
    > 💡 这会直接使用 LunaTV 官方 Docker 镜像，无需构建
@@ -273,7 +273,7 @@ docker-compose logs -f
 ```
 your-space/
 ├── README.md      # 包含 YAML 元数据
-└── Dockerfile     # FROM ghcr.io/szemeng76/lunatv:latest
+└── Dockerfile     # FROM ghcr.io/xinyule/rjlunatv:latest
 ```
 
 #### ✨ Hugging Face Space 优势
@@ -397,7 +397,7 @@ your-space/
 
 [Vercel](https://vercel.com/) 是 Next.js 官方推荐的部署平台，无服务器架构，自动扩容，适合全球用户访问。
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/SzeMeng76/LunaTV)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/xinyule/RJLunaTv)
 
 #### 部署步骤
 
@@ -471,7 +471,7 @@ your-space/
 
 [Render](https://render.com/) 提供免费的 Web Service 托管，支持 Docker 部署，适合个人项目。
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/SzeMeng76/LunaTV)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/xinyule/RJLunaTv)
 
 #### 方式一：Docker 部署（推荐）
 

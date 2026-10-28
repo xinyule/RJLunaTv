@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { promisify } from 'util';
 import { gzip } from 'zlib';
 
-import { getAuthInfoFromCookie } from '@/lib/auth';
+import { verifyAuthInfo } from '@/lib/auth';
 import { SimpleCrypto } from '@/lib/crypto';
 import { db } from '@/lib/db';
 import { CURRENT_VERSION } from '@/lib/version';
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 验证身份和权限
-    const authInfo = getAuthInfoFromCookie(req);
+    const authInfo = await verifyAuthInfo(req);
     if (!authInfo || !authInfo.username) {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
@@ -44,6 +44,9 @@ export async function POST(req: NextRequest) {
     const { password } = await req.json();
     if (!password || typeof password !== 'string') {
       return NextResponse.json({ error: '请提供加密密码' }, { status: 400 });
+    }
+    if (password.length < 12) {
+      return NextResponse.json({ error: '备份加密密码至少 12 位' }, { status: 400 });
     }
 
     // 收集所有数据
@@ -88,8 +91,9 @@ export async function POST(req: NextRequest) {
       exportData.data.userData[username] = userData;
     }
 
-    // 覆盖站长密码
-    exportData.data.userData[process.env.USERNAME].password = process.env.PASSWORD;
+    // 1.0.1：不再把站长明文 PASSWORD 写进备份。站长登录校验的是部署
+    // 环境变量，导入时也无法靠备份改环境变量；写进备份只会让拿到备份
+    // 文件的人直接拿到站长密码。站长条目密码置空，恢复后仍以环境变量为准。
 
     // 将数据转换为JSON字符串
     const jsonData = JSON.stringify(exportData);

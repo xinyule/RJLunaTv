@@ -18,7 +18,7 @@ import {
 } from '@/lib/db.client';
 import OptimizedHlsLoader from '@/lib/hls-loader';
 import { parseCustomTimeFormat } from '@/lib/time';
-import { devicePerformance, isMobile, isSafari } from '@/lib/utils';
+import { devicePerformance, escapeHtml, isMobile, isSafari } from '@/lib/utils';
 import { useInView } from '@/hooks/useInView';
 import { useLiveSync } from '@/hooks/useLiveSync';
 import { useTabsDragScroll } from '@/hooks/useTabsDragScroll';
@@ -2989,10 +2989,10 @@ function LivePageClient() {
                                           <span
                                             dangerouslySetInnerHTML={{
                                               __html: searchQuery ?
-                                                channel.name.replace(
-                                                  new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'),
+                                                escapeHtml(channel.name).replace(
+                                                  new RegExp(`(${escapeHtml(searchQuery).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'),
                                                   '<mark class="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded">$1</mark>'
-                                                ) : channel.name
+                                                ) : escapeHtml(channel.name)
                                             }}
                                           />
                                         </div>
@@ -3166,8 +3166,8 @@ function LivePageClient() {
                                   {sourceSearchQuery ? (
                                     <span
                                       dangerouslySetInnerHTML={{
-                                        __html: source.name.replace(
-                                          new RegExp(`(${sourceSearchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'),
+                                        __html: escapeHtml(source.name).replace(
+                                          new RegExp(`(${escapeHtml(sourceSearchQuery).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'),
                                           '<mark class="bg-yellow-200 dark:bg-yellow-800 px-0.5 rounded">$1</mark>'
                                         )
                                       }}

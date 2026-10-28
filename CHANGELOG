@@ -1,3 +1,14 @@
+## 1.0.1（RJLunaTv 自有安全修复，2026-10-29）
+- 修复信任网络无签名 cookie 伪造提权：信任网络签发与校验统一要求 HMAC 签名，删除 trustedNetwork 标记短路；X-Forwarded-For 不再取首项判定信任 IP。
+- 修复数据库模式后台接口只解析 cookie 不验签的问题：新增 verifyAuthInfo，关键后台接口与 admin-auth 统一验签；/api/admin/reset 改为 POST。
+- 修复代理 SSRF：m3u8 / segment / logo / shortdrama / key / stream / cms / video-proxy / image-proxy / live 预检 / spider.jar 全部改为逐跳校验重定向，补齐 TEST-NET 拦截。
+- /api/cron 改为 CRON_SECRET 鉴权，未配置则禁用；start.js 自动转发；/api/cron/stats 须持 CRON_SECRET 或管理员身份。
+- /api/server-config 内部配置分支改用 PASSWORD 派生 HMAC 背书，防外部冒充内部请求。
+- 备份导出不再写入站长明文 PASSWORD，备份加密密码至少 12 位；注册/改密/管理员代设密码至少 8 位且含字母数字；localstorage 模式登录补进程内限流。
+- 版本统一为 1.0.1，Docker 镜像改为 ghcr.io/xinyule/rjlunatv，版本检查与文档仓库名同步为 xinyule/RJLunaTv；升级后旧无签名 cookie 与旧备份加密方式不变，但未配 CRON_SECRET 的 cron 将停用，信任网络旧 cookie 需重新签发。
+- 另修复：watch-room POST 须管理员身份才返回 authKey；/api/cache 非管理员仅限 douban-/tmdb-/bangumi-/danmu-cache-/shortdrama- 公开缓存前缀；cron 重复 push 待删用户；m3u8 Content-Length 改字节长度；segment 活跃流计数双减；logo 实际读取超 5MB 拒绝；注册 Cookie 按 HTTPS 设置 Secure；服务端会话超 7 天失效；非站长管理员读配置脱敏密钥；直播频道/源名称转义后再高亮；搜索/详情拒绝封禁用户。
+- 未在本版改动（仍需后续处理）：V2 口令无盐 SHA-256 存量哈希迁移、Apple id_token JWKS 签名校验、Telegram Webhook 来源校验与 Host 改写、httpOnly:false 的 PWA Cookie 约束、DNS 重绑定 TOCTOU 残留，详见本次汇报。
+
 ## [6.6.5] - 2026-10-01
 
 ### Added
