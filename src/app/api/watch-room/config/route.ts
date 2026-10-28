@@ -1,4 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+
+import { getAdminRoleFromRequest } from '@/lib/admin-auth';
 
 import { getConfig } from '@/lib/config';
 
@@ -41,7 +43,12 @@ export async function GET() {
  *
  * 这个端点需要在实际使用时添加权限验证
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // 1.0.1：原先 POST 无任何鉴权，直接返回 authKey（注释自承未加权限验证）。
+  // 现要求已验签的管理员身份，普通登录用户与未登录请求一律 401。
+  if (!(await getAdminRoleFromRequest(request))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   try {
     const config = await getConfig();
     const watchRoomConfig = config.WatchRoomConfig;
