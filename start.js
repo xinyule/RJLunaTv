@@ -63,7 +63,10 @@ function executeCronJob() {
 
   console.log(`Executing cron job: ${cronUrl}`);
 
-  const req = http.get(cronUrl, (res) => {
+  const cronHeaders = process.env.CRON_SECRET
+    ? { 'x-cron-secret': process.env.CRON_SECRET }
+    : {};
+  const req = http.get(cronUrl, { headers: cronHeaders }, (res) => {
     let data = '';
 
     res.on('data', (chunk) => {
