@@ -1,3 +1,4 @@
+# RJLunaTv 1.0.1：本仓 Docker 镜像为 ghcr.io/xinyule/rjlunatv（见 .github/workflows/docker-image.yml）
 # ---- 第 1 阶段：安装依赖 ----
 FROM node:22-alpine AS deps
 
