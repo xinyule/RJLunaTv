@@ -3,7 +3,7 @@
 import { NextResponse } from 'next/server';
 
 import { getConfig } from '@/lib/config';
-import { validateProxyTargetUrl } from '@/lib/proxy-security';
+import { fetchWithValidatedRedirects, validateProxyTargetUrl } from '@/lib/proxy-security';
 
 export const runtime = 'nodejs';
 
@@ -83,11 +83,13 @@ export async function GET(request: Request) {
       requestHeaders.set('Range', range);
     }
 
-    const response = await fetch(decodedUrl, {
-      cache: 'no-cache',
-      redirect: 'follow',
-      headers: requestHeaders,
-    });
+    // 1.0.1：首跳已校验，但原先 redirect: 'follow' 可经重定向打内网。
+    // 改为逐跳校验，30 秒超时。
+    const response = await fetchWithValidatedRedirects(
+      decodedUrl,
+      { cache: 'no-cache', headers: requestHeaders },
+      { timeoutMs: 30000, maxRedirects: 3 },
+    );
 
     if (!response.ok && response.status !== 206) {
       return NextResponse.json(
