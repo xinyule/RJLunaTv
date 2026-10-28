@@ -3,7 +3,7 @@
 import { NextResponse } from "next/server";
 
 import { getConfig } from "@/lib/config";
-import { readArrayBufferLimited } from "@/lib/proxy-security";
+import { fetchWithValidatedRedirects, readArrayBufferLimited } from "@/lib/proxy-security";
 import { DEFAULT_USER_AGENT } from "@/lib/user-agent";
 
 export const runtime = 'nodejs';
@@ -133,18 +133,19 @@ export async function GET(request: Request) {
     const isHttps = decodedUrl.startsWith('https:');
     const agent = isHttps ? httpsAgent : httpAgent;
 
-    const response = await fetch(decodedUrl, {
-      signal: controller.signal,
-      headers: {
-        'User-Agent': ua,
-        'Accept': 'application/octet-stream, */*',
-        'Cache-Control': 'no-cache',
-        ...(cached?.etag && { 'If-None-Match': cached.etag })
+    // 1.0.1：原先完全不校验密钥 URL。改为逐跳校验，10 秒超时。
+    const response = await fetchWithValidatedRedirects(
+      decodedUrl,
+      {
+        headers: {
+          'User-Agent': ua,
+          'Accept': 'application/octet-stream, */*',
+          'Cache-Control': 'no-cache',
+          ...(cached?.etag && { 'If-None-Match': cached.etag }),
+        },
       },
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore - Node.js specific option
-      agent: typeof window === 'undefined' ? agent : undefined,
-    });
+      { timeoutMs: 10000, maxRedirects: 3 },
+    );
 
     clearTimeout(timeoutId);
 
