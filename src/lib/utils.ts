@@ -617,3 +617,17 @@ export function isSeriesCompleted(remarks?: string): boolean {
   return /完结|已完结|全\d+集|完(?!整)/.test(remarks);
 }
 
+
+/**
+ * 转义 HTML 特殊字符（1.0.1 新增，供 dangerouslySetInnerHTML 前使用）。
+ * 直播频道/源名称来自上游播放列表，属于上游可控数据，直接作 __html 会构成
+ * 存储型 XSS；先转义再做 <mark> 高亮。
+ */
+export function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
