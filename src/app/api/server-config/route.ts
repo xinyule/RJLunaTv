@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
+import { generateSignature } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { CURRENT_VERSION } from '@/lib/version'
 
@@ -14,11 +15,19 @@ export async function GET(request: NextRequest) {
   console.log('TelegramAuthConfig:', config.TelegramAuthConfig);
 
   // 检查是否是内部请求（middleware 获取信任网络配置）
+  // 1.0.1：仅凭 x-internal-request 头不再可信，必须附带 PASSWORD 派生的
+  // HMAC 签名（proxy.ts 在内部调用时生成），否则外部可直接冒充套取配置。
   const isInternalRequest = request.headers.get('x-internal-request') === 'true';
+  const internalSignature = request.headers.get('x-internal-signature');
+  let isVerifiedInternal = false;
+  if (isInternalRequest && internalSignature && process.env.PASSWORD) {
+    const expected = await generateSignature('trusted-network', process.env.PASSWORD);
+    isVerifiedInternal = expected === internalSignature;
+  }
   const requestedKey = new URL(request.url).searchParams.get('key');
 
   // 内部请求：只返回特定配置
-  if (isInternalRequest && requestedKey === 'TrustedNetworkConfig') {
+  if (isVerifiedInternal && requestedKey === 'TrustedNetworkConfig') {
     return NextResponse.json({
       TrustedNetworkConfig: config.TrustedNetworkConfig || null,
     });
