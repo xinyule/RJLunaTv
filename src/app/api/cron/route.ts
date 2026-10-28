@@ -174,6 +174,24 @@ async function withRetry<T>(
 // ========== 工具函数结束 ==========
 
 export async function GET(request: NextRequest) {
+  // 1.0.1：/api/cron 原先完全无鉴权（且被 middleware 排除），任何人可
+  // 反复触发重活。现要求 CRON_SECRET：未配置时直接禁用，配置后须在
+  // Authorization: Bearer 或 x-cron-secret 头中携带；start.js 会在配置
+  // 后自动转发（见 start.js），Vercel Cron 请改用带密钥的外部定时调用。
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    return NextResponse.json(
+      { success: false, message: 'Cron disabled: CRON_SECRET is not configured' },
+      { status: 503 },
+    );
+  }
+  const authHeader = request.headers.get('authorization') || '';
+  const provided =
+    request.headers.get('x-cron-secret') ||
+    (authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '');
+  if (provided !== cronSecret) {
+    return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
+  }
   const startTime = Date.now();
   const startMemory = process.memoryUsage().heapUsed;
 
@@ -1040,12 +1058,8 @@ async function cleanupInactiveUsers() {
       }
     );
 
-    // 收集需要删除的用户
-    usersToDelete.push(...userCheckResults.filter(r => r.shouldDelete).map(r => r.username));
-
-    console.log(`✅ 用户检查完成: 需删除 ${usersToDelete.length}, 错误 ${userCheckErrors.length}`);
-
-    // 收集需要删除的用户
+    // 收集需要删除的用户（1.0.1：原先同一行重复 push 两次，同一用户
+    // 会被删除两次、计数翻倍）
     usersToDelete.push(...userCheckResults.filter(r => r.shouldDelete).map(r => r.username));
 
     console.log(`✅ 用户检查完成: 需删除 ${usersToDelete.length}, 错误 ${userCheckErrors.length}`);
