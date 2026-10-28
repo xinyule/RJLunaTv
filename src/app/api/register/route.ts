@@ -82,8 +82,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '两次输入的密码不一致' }, { status: 400 });
     }
 
-    if (password.length < 6) {
-      return NextResponse.json({ error: '密码长度至少6位' }, { status: 400 });
+    if (password.length < 8 || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+      return NextResponse.json({ error: '密码至少 8 位，且须同时包含字母和数字' }, { status: 400 });
     }
 
     // 检查是否与管理员用户名冲突
