@@ -23,6 +23,18 @@ const LOGIN_ACCOUNT_RATE_LIMIT = 5;
 const LOGIN_IP_RATE_LIMIT = 100;
 const LOGIN_RATE_WINDOW_MS = 30 * 60 * 1000; // 30 分钟
 
+// 1.0.1：localstorage 模式原先直接跳过限流（单机默认部署反而最容易被
+// 暴力破解）。进程内用 Map 做同窗口限流；多实例部署下仍以数据库模式为准。
+const loginFailures = new Map<string, { count: number; expiresAt: number }>();
+function getMemoryFailureCount(key: string): number {
+  const entry = loginFailures.get(key);
+  if (!entry || entry.expiresAt <= Date.now()) {
+    if (entry) loginFailures.delete(key);
+    return 0;
+  }
+  return entry.count;
+}
+
 function getClientIP(request: NextRequest): string {
   // 优先使用由受信任代理写入的专用头；XFF 取末项，避免直接信任客户端伪造的首项。
   return (
@@ -60,7 +72,13 @@ async function isLoginRateLimited(
   ip: string,
   username?: string
 ): Promise<boolean> {
-  if (STORAGE_TYPE === 'localstorage') return false;
+  if (STORAGE_TYPE === 'localstorage') {
+    const accountIpCount = username
+      ? getMemoryFailureCount(getLoginRateLimitKey(ip, username))
+      : 0;
+    const ipCount = getMemoryFailureCount(getLoginRateLimitKey(ip));
+    return accountIpCount >= LOGIN_ACCOUNT_RATE_LIMIT || ipCount >= LOGIN_IP_RATE_LIMIT;
+  }
 
   try {
     const accountIpCount = username
@@ -78,7 +96,13 @@ async function isLoginRateLimited(
 }
 
 async function recordLoginFailure(ip: string, username?: string): Promise<void> {
-  if (STORAGE_TYPE === 'localstorage') return;
+  if (STORAGE_TYPE === 'localstorage') {
+    for (const key of new Set([getLoginRateLimitKey(ip, username), getLoginRateLimitKey(ip)])) {
+      const current = getMemoryFailureCount(key);
+      loginFailures.set(key, { count: current + 1, expiresAt: Date.now() + LOGIN_RATE_WINDOW_MS });
+    }
+    return;
+  }
 
   const keys = Array.from(
     new Set([getLoginRateLimitKey(ip, username), getLoginRateLimitKey(ip)])
@@ -100,7 +124,12 @@ async function recordLoginFailure(ip: string, username?: string): Promise<void> 
 }
 
 async function clearLoginFailures(ip: string, username?: string): Promise<void> {
-  if (STORAGE_TYPE === 'localstorage') return;
+  if (STORAGE_TYPE === 'localstorage') {
+    for (const key of new Set([getLoginRateLimitKey(ip, username), getLoginRateLimitKey(ip)])) {
+      loginFailures.delete(key);
+    }
+    return;
+  }
 
   try {
     await Promise.all([
