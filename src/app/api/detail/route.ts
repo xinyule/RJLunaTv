@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getAvailableApiSites, getCacheTime } from '@/lib/config';
+import { getAvailableApiSites, getCacheTime, getConfig } from '@/lib/config';
 import { getDetailFromApi, searchFromApi } from '@/lib/downstream';
 import { recordRequest, getDbQueryCount, resetDbQueryCount } from '@/lib/performance-monitor';
 
@@ -30,6 +30,19 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json(errorResponse, { status: 401 });
+  }
+
+  // 1.0.1：封禁用户原先仍可看详情（中间件不查 banned）。封禁即拒绝，站长除外。
+  if (authInfo.username !== process.env.USERNAME) {
+    try {
+      const config = await getConfig();
+      const bannedUser = config.UserConfig?.Users?.find((u: any) => u.username === authInfo.username);
+      if (bannedUser?.banned) {
+        return NextResponse.json({ error: '用户已被封禁' }, { status: 401 });
+      }
+    } catch {
+      // 配置读取失败时不因此额外拦截，后续流程仍会按原有逻辑处理
+    }
   }
 
   const { searchParams } = new URL(request.url);
