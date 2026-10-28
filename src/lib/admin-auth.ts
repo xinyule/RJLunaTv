@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 
 import { AdminConfig } from '@/lib/admin.types';
-import { getAuthInfoFromCookie, verifyLocalPasswordHash } from '@/lib/auth';
+import { getAuthInfoFromCookie, verifyAuthInfo, verifyLocalPasswordHash } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 
 export type AdminRole = 'owner' | 'admin';
@@ -25,17 +25,19 @@ async function resolveRoleFromConfig(
 export async function getAdminRoleFromRequest(
   request: NextRequest
 ): Promise<AdminRole | null> {
-  const authInfo = getAuthInfoFromCookie(request);
-  if (!authInfo) {
-    return null;
-  }
-
   const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
 
   if (storageType === 'localstorage') {
-    if (await verifyLocalPasswordHash(authInfo.password)) {
+    const authInfo = getAuthInfoFromCookie(request);
+    if (authInfo && (await verifyLocalPasswordHash(authInfo.password))) {
       return 'owner';
     }
+    return null;
+  }
+
+  // 数据库模式：必须验签通过才信任 username（1.0.1 修复伪造 cookie 提权）。
+  const authInfo = await verifyAuthInfo(request);
+  if (!authInfo) {
     return null;
   }
 
