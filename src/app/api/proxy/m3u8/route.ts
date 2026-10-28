@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 
 import { getConfig } from "@/lib/config";
 import { getBaseUrl, resolveUrl } from "@/lib/live";
-import { readTextLimited } from "@/lib/proxy-security";
+import { fetchWithValidatedRedirects, readTextLimited } from "@/lib/proxy-security";
 import { DEFAULT_USER_AGENT } from "@/lib/user-agent";
 
 // m3u8 manifest 响应体大小硬上限，防止异常上游返回超大响应把内存打爆
@@ -111,16 +111,13 @@ export async function GET(request: Request) {
       }
     }
 
-    response = await fetch(decodedUrl, {
-      cache: 'no-cache',
-      redirect: 'follow',
-      credentials: 'same-origin',
-      signal: controller.signal,
-      headers: new Headers(headers),
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore - Node.js specific option
-      agent: typeof window === 'undefined' ? agent : undefined,
-    });
+    // 1.0.1：原先 redirect: 'follow' 且不校验，任意 URL 可经重定向打内网。
+    // 改为逐跳校验（首跳与每次重定向都走 validateProxyTargetUrl），15 秒超时。
+    response = await fetchWithValidatedRedirects(
+      decodedUrl,
+      { cache: 'no-cache', credentials: 'same-origin', headers: new Headers(headers) },
+      { timeoutMs: 15000, maxRedirects: 3 },
+    );
 
     clearTimeout(timeoutId);
 
@@ -180,7 +177,7 @@ export async function GET(request: Request) {
       headers.set('Pragma', 'no-cache');
       headers.set('Expires', '0');
       headers.set('Access-Control-Expose-Headers', 'Content-Length, Content-Range, Content-Type');
-      headers.set('Content-Length', modifiedContent.length.toString());
+      headers.set('Content-Length', Buffer.byteLength(modifiedContent).toString()); // 1.0.1：原先用字符串长度，非 ASCII 内容会失配
 
       // 更新性能统计
       const responseTime = Date.now() - startTime;
