@@ -2,12 +2,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-import { getAuthInfoFromCookie } from '@/lib/auth';
+import { verifyAuthInfo } from '@/lib/auth';
 import { resetConfig } from '@/lib/config';
 
 export const runtime = 'nodejs';
 
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
   if (storageType === 'localstorage') {
     return NextResponse.json(
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const authInfo = getAuthInfoFromCookie(request);
+  const authInfo = await verifyAuthInfo(request);
   if (!authInfo || !authInfo.username) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -48,4 +48,9 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+export async function GET() {
+  // 1.0.1：重置配置是破坏性操作，禁止 GET 触发（防 CSRF/误触），请用 POST。
+  return NextResponse.json({ error: 'Method not allowed, use POST' }, { status: 405 });
 }
