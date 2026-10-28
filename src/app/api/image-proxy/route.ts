@@ -74,19 +74,42 @@ export async function GET(request: Request) {
       'Connection': 'keep-alive',
     };
 
-    let imageResponse: Response;
-    try {
-      imageResponse = await fetch(imageUrl, {
-        signal: controller.signal,
-        headers: fetchHeaders,
-      });
-    } catch (fetchError: any) {
-      // SSL cert error (e.g. expired cert) - retry with rejectUnauthorized: false
-      if (imageUrl.startsWith('https://') && (fetchError.code === 'CERT_HAS_EXPIRED' || fetchError.cause?.code === 'CERT_HAS_EXPIRED' || fetchError.message?.includes('certificate'))) {
-        imageResponse = await fetchWithInsecureHttps(imageUrl, fetchHeaders);
-      } else {
-        throw fetchError;
+    // 1.0.1：原先首跳已校验，但 fetch 默认跟随重定向，可经重定向打内网。
+    // 改为手动逐跳校验：每跳都重新 validateProxyTargetUrl（上方已校验首跳，
+    // 循环内对重定向目标再校验），最多 3 跳；证书过期时仍保留原有的
+    // 不校验证书重试，但只针对当跳已校验过的 URL。
+    let imageResponse: Response | null = null;
+    let currentUrl = imageUrl;
+    for (let hop = 0; hop <= 3; hop++) {
+      await validateProxyTargetUrl(currentUrl);
+      let hopResponse: Response;
+      try {
+        hopResponse = await fetch(currentUrl, {
+          signal: controller.signal,
+          headers: fetchHeaders,
+          redirect: 'manual',
+        });
+      } catch (fetchError: any) {
+        if (currentUrl.startsWith('https://') && (fetchError.code === 'CERT_HAS_EXPIRED' || fetchError.cause?.code === 'CERT_HAS_EXPIRED' || fetchError.message?.includes('certificate'))) {
+          hopResponse = await fetchWithInsecureHttps(currentUrl, fetchHeaders);
+        } else {
+          throw fetchError;
+        }
       }
+      const location = hopResponse.headers.get('location');
+      if (hopResponse.status >= 300 && hopResponse.status < 400 && location) {
+        if (hop === 3) {
+          return NextResponse.json({ error: 'Too many redirects' }, { status: 502 });
+        }
+        hopResponse.body?.cancel();
+        currentUrl = new URL(location, currentUrl).toString();
+        continue;
+      }
+      imageResponse = hopResponse;
+      break;
+    }
+    if (!imageResponse) {
+      return NextResponse.json({ error: 'Too many redirects' }, { status: 502 });
     }
 
     clearTimeout(timeoutId);
