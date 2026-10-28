@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import {
+  generateSignature,
   getAuthInfoFromCookie,
   getLocalPasswordHash,
   verifyLocalPasswordHash,
@@ -53,10 +54,19 @@ async function getTrustedNetworkFromAPI(request: NextRequest): Promise<{ enabled
     const url = new URL('/api/server-config', request.url);
     url.searchParams.set('key', 'TrustedNetworkConfig');
 
+    const internalHeaders: Record<string, string> = {
+      'x-internal-request': 'true',
+    };
+    // 1.0.1：内部请求用 PASSWORD 派生的 HMAC 背书，防止外部直接带
+    // x-internal-request 头冒充内部请求套取 TrustedNetworkConfig。
+    if (process.env.PASSWORD) {
+      internalHeaders['x-internal-signature'] = await generateSignature(
+        'trusted-network',
+        process.env.PASSWORD,
+      );
+    }
     const response = await fetch(url.toString(), {
-      headers: {
-        'x-internal-request': 'true',
-      },
+      headers: internalHeaders,
     });
 
     trustedNetworkFetched = true;
@@ -130,15 +140,13 @@ function isWeakDefaultCredential(value: string): boolean {
 
 // 获取客户端 IP
 function getClientIP(request: NextRequest): string {
-  // 按优先级获取客户端 IP
-  const forwardedFor = request.headers.get('x-forwarded-for');
-  if (forwardedFor) {
-    return forwardedFor.split(',')[0].trim();
-  }
-
+  // 1.0.1：信任网络判定不能直接取 X-Forwarded-For 首项——首项可由客户端
+  // 任意伪造。优先取受信任代理写入的 cf-connecting-ip / x-real-ip，
+  // 只有都没有时才取 XFF 末项（最接近代理的一跳），与登录限流保持一致。
   return (
-    request.headers.get('x-real-ip') ||
-    request.headers.get('cf-connecting-ip') ||
+    request.headers.get('cf-connecting-ip')?.trim() ||
+    request.headers.get('x-real-ip')?.trim() ||
+    request.headers.get('x-forwarded-for')?.split(',').pop()?.trim() ||
     'unknown'
   );
 }
@@ -215,15 +223,20 @@ async function generateTrustedAuthCookie(request: NextRequest): Promise<NextResp
       maxAge: 7 * 24 * 60 * 60, // 7 天
     });
   } else {
-    // 数据库模式：生成签名 cookie（需要异步，这里简化处理）
-    // 在信任网络模式下，我们设置一个特殊的信任标记
-    const authInfo = {
+    // 数据库模式：信任网络签发的 cookie 也必须带 HMAC 签名（1.0.1）。
+    // 旧的无签名 trustedNetwork cookie 在下一次校验时会被拒绝，
+    // 信任网络内的用户会由自动登录分支重新签发，无需手动干预。
+    const signature = process.env.PASSWORD
+      ? await generateSignature(username, process.env.PASSWORD)
+      : undefined;
+    const authInfo: Record<string, unknown> = {
       username,
       trustedNetwork: true,
       timestamp: Date.now(),
       loginTime: Date.now(),
       role: 'owner',
     };
+    if (signature) authInfo.signature = signature;
     response.cookies.set('user_auth', JSON.stringify(authInfo), {
       httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
@@ -282,6 +295,8 @@ async function handleAuthentication(
   pathname: string,
   response?: NextResponse
 ) {
+  const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
+
   // 🔥 检查信任网络模式（环境变量优先，然后数据库）
   const trustedNetworkConfig = await getTrustedNetworkConfig(request);
   if (trustedNetworkConfig?.enabled && trustedNetworkConfig.trustedIPs.length > 0) {
@@ -294,14 +309,23 @@ async function handleAuthentication(
         pathname.startsWith('/admin') || pathname.startsWith('/api/admin');
       if (trustedNetworkConfig.blockAdminAccess && isAdminPath) {
         // 不签发也不复用 trustedNetwork cookie，让请求走标准认证流程
-        // 后面 authInfo.trustedNetwork 短路那里还会再拦一次（针对已有 cookie 的情况）
+        // 后续签名校验仍会拦住无签名 cookie，且 blockAdminAccess 会再次生效
       } else {
         console.log(`[Middleware] Trusted network auto-login for IP: ${clientIP}`);
 
-        // 检查是否已经有有效的认证 cookie
+        // 检查是否已经有有效的认证 cookie：只复用验签通过的 cookie，
+        // 无签名的 trustedNetwork 标记不再视为有效（1.0.1），下面会重新签发。
         const existingAuth = getAuthInfoFromCookie(request);
-        if (existingAuth && (existingAuth.password || existingAuth.trustedNetwork || existingAuth.signature)) {
-          return response || NextResponse.next();
+        if (existingAuth) {
+          if (storageType === 'localstorage') {
+            if (existingAuth.password && (await verifyLocalPasswordHash(existingAuth.password))) {
+              return response || NextResponse.next();
+            }
+          } else if (existingAuth.username && existingAuth.signature && process.env.PASSWORD) {
+            if (await verifySignature(existingAuth.username, existingAuth.signature, process.env.PASSWORD)) {
+              return response || NextResponse.next();
+            }
+          }
         }
 
         // 没有认证 cookie，自动生成并设置
@@ -309,8 +333,6 @@ async function handleAuthentication(
       }
     }
   }
-
-  const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
 
   if (!process.env.PASSWORD) {
     // 未设置密码，重定向到警告页面
@@ -341,17 +363,18 @@ async function handleAuthentication(
     return response || NextResponse.next();
   }
 
-  // 其他模式：验证签名或信任网络标记
-  // 🔥 信任网络模式：检查 trustedNetwork 标记
+  // 其他模式：只验证签名。1.0.1 删除了 trustedNetwork 标记短路：
+  // 旧的无签名信任网络 cookie 曾可从任意 IP 伪造后直接放行。
+  // 信任网络签发的 cookie 现在也带签名（见 generateTrustedAuthCookie），
+  // 因此走下方统一的签名校验即可；blockAdminAccess 仍在签名通过后生效。
   if (authInfo.trustedNetwork) {
-    // 加固开关：信任网络访客的 cookie 不允许进入后台
     if (
       trustedNetworkConfig?.blockAdminAccess &&
       (pathname.startsWith('/admin') || pathname.startsWith('/api/admin'))
     ) {
       return NextResponse.redirect(new URL('/login', request.url));
     }
-    return response || NextResponse.next();
+    // 不再直接放行，继续走签名校验
   }
 
   // 检查是否有用户名（非localStorage模式下密码不存储在cookie中）
@@ -367,8 +390,15 @@ async function handleAuthentication(
       process.env.PASSWORD || ''
     );
 
-    // 签名验证通过即可
+    // 签名验证通过且未超 7 天即可（1.0.1：原先服务端不校验时间戳，
+    // Cookie 7 天有效期只靠浏览器，窃取后可无限重放）
     if (isValidSignature) {
+      if (authInfo.timestamp) {
+        const age = Date.now() - authInfo.timestamp;
+        if (!Number.isFinite(age) || age < 0 || age > 7 * 24 * 60 * 60 * 1000) {
+          return handleAuthFailure(request, pathname);
+        }
+      }
       return response || NextResponse.next();
     }
   }
