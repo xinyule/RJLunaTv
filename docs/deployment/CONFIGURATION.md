@@ -61,6 +61,11 @@
 | `USERNAME`               | 站长账号       | `admin`               |
 | `PASSWORD`               | 站长密码       | `your_secure_password`|
 | `NEXT_PUBLIC_STORAGE_TYPE` | 存储类型     | `kvrocks` / `redis` / `upstash` |
+| `CRON_SECRET`              | 定时任务密钥（1.0.1 起，不配则 `/api/cron` 停用） | `openssl rand -hex 32` 生成的随机串 |
+
+### 定时任务
+
+`CRON_SECRET` 是 `/api/cron` 的调用密钥：服务端配了它，`start.js`（Docker / Node 常驻部署）会自动每小时带密钥触发一次；Vercel 等无常驻进程的部署需用外部定时器带 `Authorization: Bearer <CRON_SECRET>` 或 `x-cron-secret: <CRON_SECRET>` 请求头每小时调用一次。未配置时定时任务返回 503 并停用，密钥错误返回 401。完整用法见 [部署文档：定时任务与 CRON_SECRET](DEPLOYMENT.md#定时任务与-cron_secret)。
 
 ### 存储配置
 
