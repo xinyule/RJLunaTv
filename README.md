@@ -123,6 +123,25 @@ docker-compose up -d
 
 访问 `http://localhost:3000` 即可使用。
 
+### ⏰ 定时任务：配置 CRON_SECRET（1.0.1 起必填，否则定时任务停用）
+
+定时任务（`/api/cron`）负责视频缓存清理、直播频道刷新、播放记录与收藏刷新、非活跃用户清理等重活。1.0.1 之前它没有任何鉴权，任何人都能触发；1.0.1 起改为密钥鉴权，**不配置就直接停用，这是故意 fail-closed，不是 bug**。
+
+```bash
+# 1. 生成一个随机密钥（自己定，不用向任何平台申请，也不要复用站长密码）
+openssl rand -hex 32
+
+# 2. 写进部署环境变量，然后重启容器/服务
+CRON_SECRET=<上面生成的随机串>
+```
+
+- Docker / start.js 部署：配好并重启后就不用再管，`start.js` 会在服务启动 3 秒后跑一次，之后每小时自动带密钥调用一次 `/api/cron`。
+- Vercel 等无常驻 `start.js` 的部署：需用外部定时器（如 cron-job.org、系统 crontab）每小时调用一次，请求头二选一：`Authorization: Bearer <CRON_SECRET>` 或 `x-cron-secret: <CRON_SECRET>`，不要把密钥放进 URL。
+- 验证：没配返回 503（Cron disabled），密钥错返回 401，配对返回成功结果；5 分钟内重复触发会被节流跳过，属于正常现象。
+- 统计接口：`GET /api/cron/stats`，同样带密钥可查，或用已登录管理员身份访问。
+
+详细说明见 [部署文档：定时任务与 CRON_SECRET](docs/deployment/DEPLOYMENT.md#定时任务与-cron_secret)。
+
 ### 本地开发
 
 ```bash
