@@ -76,6 +76,59 @@ volumes:
   video-cache:  # 视频缓存 volume
 ```
 
+### ⏰ 定时任务与 CRON_SECRET
+
+定时任务入口是 `GET /api/cron`，执行内容包括视频缓存清理、直播频道刷新、播放记录与收藏刷新、非活跃用户清理（仅当该功能开启时），以及 Vercel 环境下的 Spider JAR 更新。1.0.1 之前该接口没有任何鉴权，任何人都能反复触发这些重活；1.0.1 起改为密钥鉴权。
+
+#### CRON_SECRET 是什么
+
+它不是平台下发的密钥，也不是站长账号密码，而是你自己生成的一串随机字符，**服务端环境变量和调用方请求头里的值必须一致**，对不上就拒绝。建议至少 32 字节随机串，不要复用 `USERNAME` / `PASSWORD`，不要写进公开的 compose 截图、日志或 URL 里。
+
+```bash
+# 生成随机密钥
+openssl rand -hex 32
+```
+
+#### Docker 部署：配好环境变量并重启即可
+
+```yml
+services:
+  moontv-core:
+    image: ghcr.io/xinyule/rjlunatv:latest
+    environment:
+      - CRON_SECRET=<上面生成的随机串>
+```
+
+配好并重启容器后不需要再配外部定时器：`start.js` 会在服务就绪 3 秒后执行一次，之后每小时自动以 `x-cron-secret` 请求头调用一次站内的 `/api/cron`。这是 Docker / Node 常驻部署的默认工作方式。
+
+#### Vercel / Render 等无常驻 start.js 的部署：用外部定时器调用
+
+这类部署没有长期运行的 `start.js`，需要你自己用外部定时服务（例如 cron-job.org、UptimeRobot、GitHub Actions 定时任务，或服务器 crontab）每小时调用一次：
+
+```bash
+# 两种请求头二选一，不要把密钥放进 URL 查询参数
+curl -H "Authorization: Bearer <CRON_SECRET>" https://your-domain.com/api/cron
+# 或
+curl -H "x-cron-secret: <CRON_SECRET>" https://your-domain.com/api/cron
+```
+
+#### 返回状态说明
+
+| 状态码 | 含义 |
+| ------ | ---- |
+| 503 | 未配置 `CRON_SECRET`，定时任务已被禁用（1.0.1 的故意行为，不是故障） |
+| 401 | 密钥不对或请求头缺失 |
+| 200 且提示已在运行 / 距上次不足 5 分钟 | 本次被跳过：服务端有进程内并发锁和 5 分钟节流，属于正常保护，不是失败 |
+| 200 且 success 为 true | 本次定时任务正常执行 |
+
+#### 查看执行统计
+
+`GET /api/cron/stats`：带上面任意一种密钥请求头即可查看；不带密钥时需为已登录管理员身份。定时任务从未跑过时会返回 404，属正常（先成功触发一次 `/api/cron` 再查）。
+
+#### 轮换密钥
+
+改服务端 `CRON_SECRET` 并同步改外部定时器的请求头，然后重启服务即可，旧密钥立即失效。只改一边会导致外部调用持续 401、内部 `start.js` 调用失败，表现为定时任务不再执行。
+
 ### 🔴 Redis 存储（有数据丢失风险）
 
 Redis 默认配置可能导致数据丢失，需要开启持久化。
